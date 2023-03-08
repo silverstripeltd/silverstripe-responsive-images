@@ -1,12 +1,12 @@
 {
     "name": "heyday/silverstripe-responsive-images",
     "description": "Configure and send a series of image size options to the client without loading any resources until a media query can be executed.",
-    "keywords": ["silverstripe", "responsive", "image", "picturefill"],
+    "keywords": ["silverstripe", "responsive", "image"],
     "type": "silverstripe-vendormodule",
     "license": "MIT",
     "require": {
-        "silverstripe/vendor-plugin": "^1.0",
-        "silverstripe/framework": "^4.0"
+        "php": "^8.1",
+        "silverstripe/framework": "^5.0"
     },
     "extra": {
         "expose": [

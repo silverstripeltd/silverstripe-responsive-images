@@ -5,16 +5,22 @@
 This module provides the ability to send a series of configured image sizes to the client without actually loading any resources until a media query can be executed.
 
 This is particularly useful for sites that use responsive design, because it means that smaller viewports can receive images optimised for their size rather than pulling down a single image optimised for desktop.
-This module is highly configurable and relies on [picturefill.js](https://github.com/scottjehl/picturefill) for the client-side magic.
 
 ## Requirements
-SilverStripe 4.0 or higher
 
-For a SS 3.x compatible-version, please see branch 1.0
+* PHP ^8.1
+* SilverStripe ^5.0
+
+Legacy support:
+
+* For a SS 4.x compatible-version, please see branch 2.0
+* For a SS 3.x compatible-version, please see branch 1.0
 
 ## Installation
 
-    composer require heyday/silverstripe-responsive-images
+```bash
+composer require heyday/silverstripe-responsive-images
+```
 
 ## How to use
 

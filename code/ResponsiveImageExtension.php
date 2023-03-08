@@ -2,13 +2,15 @@
 
 namespace Heyday\ResponsiveImages;
 
+use Exception;
+use RuntimeException;
+use SilverStripe\Assets\Image;
+use SilverStripe\Assets\Storage\DBFile;
 use SilverStripe\Core\Config\Config;
 use SilverStripe\Core\Extension;
 use SilverStripe\ORM\ArrayList;
 use SilverStripe\View\ArrayData;
-use SilverStripe\View\Requirements;
-use Exception;
-use RuntimeException;
+use SilverStripe\View\ViewableData;
 
 /**
  * An extension to the Image class to inject methods for responsive image sets.
@@ -29,37 +31,11 @@ use RuntimeException;
  */
 class ResponsiveImageExtension extends Extension
 {
-    /**
-     * @var array
-     * @config
-     */
-    private static $default_arguments = [800, 600];
+    private static array $default_arguments = [800, 600];
 
-    /**
-     * @var string
-     * @config
-     */
-    private static $default_method = 'ScaleWidth';
+    private static string $default_method = 'ScaleWidth';
 
-    /**
-     * @var string
-     * @config
-     */
-    private static $default_css_classes = '';
-
-    /**
-     * @var array A cached copy of the image sets
-     */
-    protected $configSets;
-
-    /**
-     * {@inheritdoc}
-     */
-    public function __construct()
-    {
-        parent::__construct();
-        $this->configSets = Config::inst()->get(__CLASS__, 'sets') ?: [];
-    }
+    private static string $default_css_classes = '';
 
     /**
      * A wildcard method for handling responsive sets as template functions,
@@ -67,13 +43,29 @@ class ResponsiveImageExtension extends Extension
      *
      * @param string $method The method called
      * @param array $args The arguments passed to the method
-     * @return HTMLText
      */
-    public function __call($method, $args)
+    public function __call(string $method, array $args): ?ViewableData
     {
-        if ($config = $this->getConfigForSet($method)) {
-            return $this->createResponsiveSet($config, $args, $method);
+        $config = $this->getConfigForSet($method);
+
+        if (!$config) {
+            return null;
         }
+
+        return $this->createResponsiveSet($config, $args, $method);
+    }
+
+    /**
+     * Defines all the methods that can be called in this class.
+     */
+    public function allMethodNames(): array
+    {
+        return array_map('strtolower', array_keys($this->getSets()));
+    }
+
+    protected function getSets(): array
+    {
+        return Config::inst()->get(static::class, 'sets') ?? [];
     }
 
     /**
@@ -84,75 +76,81 @@ class ResponsiveImageExtension extends Extension
      * @param array $defaultArgs The arguments passed to the responsive image
      *                           method call, e.g. $MyImage.ResponsiveSet(800x600)
      * @param string $set The method, or responsive image set, to generate
-     * @return SSViewer
      */
-    protected function createResponsiveSet($config, $defaultArgs, $set)
+    protected function createResponsiveSet(array $config, array $defaultArgs, string $set): ViewableData
     {
-        Requirements::javascript('heyday/silverstripe-responsive-images:javascript/picturefill/picturefill.min.js');
-
         if (!isset($config['arguments']) || !is_array($config['arguments'])) {
-            throw new Exception("Responsive set $set does not have any arguments defined in its config.");
+            throw new Exception(sprintf(
+                'Responsive set %s does not have any arguments defined in its config.',
+                $set
+            ));
         }
 
         if (empty($defaultArgs)) {
             if (isset($config['default_arguments'])) {
                 $defaultArgs = $config['default_arguments'];
             } else {
-                $defaultArgs = Config::inst()->get(__CLASS__, 'default_arguments');
+                $defaultArgs = Config::inst()->get(static::class, 'default_arguments');
             }
         }
 
         if (isset($config['method'])) {
             $methodName = $config['method'];
         } else {
-            $methodName = Config::inst()->get(__CLASS__, 'default_method');
+            $methodName = Config::inst()->get(static::class, 'default_method');
         }
 
-
         if (!$this->owner->hasMethod($methodName)) {
-            throw new RuntimeException(get_class($this->owner) . ' has no method ' . $methodName);
+            throw new RuntimeException(sprintf(
+                '%s has no method %s',
+                get_class($this->owner),
+                $methodName
+            ));
         }
 
         // Create the resampled images for each query in the set
         $sizes = ArrayList::create();
+
         foreach ($config['arguments'] as $query => $args) {
             if (is_numeric($query) || !$query) {
-                throw new Exception("Responsive set $set has an empty media query. Please check your config format");
+                throw new Exception(sprintf(
+                    'Responsive set %s has an empty media query. Please check your config format',
+                    $set
+                ));
             }
 
             if (!is_array($args) || empty($args)) {
-                throw new Exception("Responsive set $set doesn't have any arguments provided for the query: $query");
+                throw new Exception(sprintf(
+                    "Responsive set %s doesn't have any arguments provided for the query: %s",
+                    $set,
+                    $query
+                ));
             }
 
             $sizes->push(ArrayData::create([
                 'Image' => $this->getResampledImage($methodName, $args),
-                'Query' => $query
+                'Query' => $query,
             ]));
         }
 
-        if (isset($config['css_classes'])) {
-            $extraClasses = $config['css_classes'];
-        } else {
-            $extraClasses = Config::inst()->get(__CLASS__, 'default_css_classes');
-        }
+        // Use specified classes, or fall back to default classes if none are provided
+        $extraClasses = $config['css_classes'] ?? Config::inst()->get(static::class, 'default_css_classes');
+        // Use specified template, or fall back to default template
+        $templatePath = $config['template'] ?? 'Includes/ResponsiveImageSet';
 
-        $templatePath = isset($config['template']) ? $config['template'] : 'Includes/ResponsiveImageSet';
-
-        return $this->owner->customise([
-            'Sizes' => $sizes,
-            'ExtraClasses' => $extraClasses,
-            'DefaultImage' => $this->getResampledImage($methodName, $defaultArgs)
-        ])->renderWith($templatePath);
+        return $this->owner
+            ->customise([
+                'Sizes' => $sizes,
+                'ExtraClasses' => $extraClasses,
+                'DefaultImage' => $this->getResampledImage($methodName, $defaultArgs),
+            ])
+            ->renderWith($templatePath);
     }
 
     /**
      * Return a resampled image equivalent to $Image.MethodName(...$args) in a template
-     *
-     * @param string $methodName
-     * @param array $args
-     * @return Image
      */
-    protected function getResampledImage($methodName, $args)
+    protected function getResampledImage(string $methodName, array $args): DBFile|Image
     {
         return call_user_func_array([$this->owner, $methodName], $args);
     }
@@ -163,33 +161,12 @@ class ResponsiveImageExtension extends Extension
      * case-insensitive comparison.
      *
      * @param string $setName The name of the responsive image set to get
-     * @return array|false
      */
-    protected function getConfigForSet($setName)
+    protected function getConfigForSet(string $setName): ?array
     {
         $name = strtolower($setName);
-        $sets = array_change_key_case($this->configSets, CASE_LOWER);
+        $sets = array_change_key_case($this->getSets());
 
-        return (isset($sets[$name])) ? $sets[$name] : false;
-    }
-
-    /**
-     * Returns a list of available image sets.
-     *
-     * @return array
-     */
-    protected function getResponsiveSets()
-    {
-        return array_map('strtolower', array_keys($this->configSets));
-    }
-
-    /**
-     * Defines all the methods that can be called in this class.
-     *
-     * @return array
-     */
-    public function allMethodNames()
-    {
-        return $this->getResponsiveSets();
+        return $sets[$name] ?? null;
     }
 }

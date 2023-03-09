@@ -24,7 +24,7 @@ use SilverStripe\View\ViewableData;
  *         "(min-width: 200px)": [200, 100]
  *         "(min-width: 800px)": [200, 400]
  *         "(min-width: 1200px) and (min-device-pixel-ratio: 2.0)": [800, 400]
- *       default_image_dimensions: [200, 400]
+ *       default_image_arguments: [200, 400]
  *
  * This provides $MyImage.MyResponsiveImageSet to the template. For more
  * documentation on implementation, see the README file.
@@ -33,22 +33,6 @@ use SilverStripe\View\ViewableData;
  */
 class ResponsiveImageExtension extends Extension
 {
-    public const FORMAT_IMG = 'img';
-    public const FORMAT_PICTURE = 'picture';
-
-    private const FORMATS = [
-        self::FORMAT_IMG,
-        self::FORMAT_PICTURE,
-    ];
-
-    private static array $default_image_dimensions = [800, 600];
-
-    private static string $default_format = self::FORMAT_PICTURE;
-
-    private static string $default_method = 'ScaleWidth';
-
-    private static string $default_css_classes = '';
-
     /**
      * A wildcard method for handling responsive sets as template functions,
      * e.g. $MyImage.ResponsiveSet1
@@ -69,7 +53,7 @@ class ResponsiveImageExtension extends Extension
         return array_map('strtolower', array_keys($this->getSets()));
     }
 
-    protected function getSets(): array
+    private function getSets(): array
     {
         return Config::inst()->get(static::class, 'sets') ?? [];
     }
@@ -81,7 +65,7 @@ class ResponsiveImageExtension extends Extension
      * @param array $defaultImageArgs The arguments passed to the responsive image method call to be used for the
      *  default image: e.g. $MyImage.ResponsiveSet(800, 600) or $MyImage.ResponsiveSet('Fill', 800, 600)
      */
-    protected function createResponsiveSet(string $setName, array $defaultImageArgs): ?ViewableData
+    private function createResponsiveSet(string $setName, array $defaultImageArgs): ?ViewableData
     {
         // Find the associated config by set name
         $config = $this->getConfigForSet($setName);
@@ -97,8 +81,10 @@ class ResponsiveImageExtension extends Extension
         $singleDefinition = $config['definition'] ?? null;
         // Art direction means multiple source tags, and so can only be supported by picture
         $artDirection = $config['art_direction'] ?? null;
-        // Legacy support (which is effectively "art direction")
+        // Legacy support for simple "media query" picture sources (which is effectively "art direction")
         $arguments = $config['arguments'] ?? null;
+        // Only the Legacy method provides method at the "top level"
+        $method = null;
 
         // If no valid configuration was supplied, then we can't proceed
         if (!is_array($singleDefinition) && !is_array($artDirection) && !is_array($arguments)) {
@@ -115,7 +101,7 @@ class ResponsiveImageExtension extends Extension
             $definition = $singleDefinition;
 
             // Make sure a valid format was specified
-            if (!in_array($format, self::FORMATS)) {
+            if (!in_array($format, ResponsiveImage::FORMATS)) {
                 throw new Exception(sprintf(
                     'Invalid format "%s" specified for set "%s"',
                     $format,
@@ -124,55 +110,64 @@ class ResponsiveImageExtension extends Extension
             }
         } else if (is_array($artDirection)) {
             // Only "picture" format is supported for art direction, as it requires multiple source tags
-            $format = self::FORMAT_PICTURE;
+            $format = ResponsiveImage::FORMAT_PICTURE;
             // Art direction can be provided as an array of setNames and/or an array of full config definitions. Here
             // we will convert all of those into an array of standard definitions
             $definition = $this->getDefinitionForArtDirection($setName, $artDirection);
         } else {
             // Only "picture" format is supported for art direction
-            $format = self::FORMAT_PICTURE;
+            $format = ResponsiveImage::FORMAT_PICTURE;
             // Legacy format provides the cropping method as part of the outer config layer
-            $method = $config['method'] ?? Config::inst()->get(static::class, 'default_method');
-            // Legacy support for old configuration. This is effectively turning the original configuration method into
-            // "art direction"
+            $method = $config['method'] ?? null;
+            // Legacy support for simple media configuration. This is effectively turning the original configuration
+            // method into "art direction"
             $definition = $this->getDefinitionForArguments($setName, $arguments, $method);
         }
 
         // Instantiate our new ResponsiveImage
-        $responsiveImage = new ResponsiveImage($this->owner, $format);
+        $responsiveImage = ResponsiveImage::create($this->owner, $format);
 
         // An associative array indicates a single level of definitions, so we only need one Source (and not a
         // SourceSet - which is an ArrayList of Source)
         $source = $this->hasAssociativeArray($definition)
-            ? $this->getSource($setName, $definition)
-            : $this->getSourceSet($setName, $definition);
+            ? $this->getSourceForDefinition($setName, $definition)
+            : $this->getSourceSetForDefinitionSets($setName, $definition);
 
-        // Use specified CSS classes, or fall back to default classes if none are provided
-        $cssClasses = $config['css_classes'] ?? Config::inst()->get(static::class, 'default_css_classes');
+        // Add specified CSS classes (if any were provided)
+        $cssClasses = $config['css_classes'] ?? null;
 
         // If arguments were passed to this method e.g. $MyImage.ResponsiveSet(800, 600) or
         // $MyImage.ResponsiveSet('Fill', 800, 600), then we will use those for our default image size
-        // Otherwise, we will attempt to fall back to any configured size, and failing that we'll use our default
-        $defaultImageDimensions = $this->getDimensionsFromDefaultArgs($defaultImageArgs)
-            ?? $config['default_image']
-            ?? Config::inst()->get(static::class, 'default_image_dimensions');
+        $defaultImageArguments = $this->getDimensionsFromDefaultArgs($defaultImageArgs)
+            // We can try to fall back to any configured arguments
+            ?? $config['default_image_arguments']
+            // Otherwise nothing, and ResponsiveImage will fall back to global default
+            ?? null;
 
         // Prioritise using the method that was used when calling this method
         // e.g. $MyImage.ResponsiveSet('Fill', 800, 600)
-        // Otherwise, we will attempt to fall back to any configured method, and failing that we'll use our default
         $defaultImageMethod = $this->getMethodFromDefaultArgs($defaultImageArgs)
+            // We can try to fall back to any configured method
             ?? $config['default_image_method']
-            ?? Config::inst()->get(static::class, 'default_method');
+            // If using the Legacy format, then method might have been provided here
+            ?? $method
+            // Otherwise nothing, and ResponsiveImage will fall back to global default
+            ?? null;
+
+        // You can define a template that you would like to use for your particular configuration. The default
+        // is defined in ResponsiveImage
+        $template = $config['template'] ?? null;
 
         $responsiveImage->setSource($source);
-        $responsiveImage->setDefaultImageDimensions($defaultImageDimensions);
+        $responsiveImage->setDefaultImageArguments($defaultImageArguments);
         $responsiveImage->setDefaultImageMethod($defaultImageMethod);
         $responsiveImage->setCssClasses($cssClasses);
+        $responsiveImage->setTemplate($template);
 
         return $responsiveImage;
     }
 
-    private function getDefinitionForArguments(string $setName, array $arguments, string $method): array
+    private function getDefinitionForArguments(string $setName, array $arguments, ?string $method): array
     {
         $definition = [];
 
@@ -193,25 +188,20 @@ class ResponsiveImageExtension extends Extension
             }
 
             $definition[] = [
-                'method' => $method,
                 'media' => [
                     $query,
                 ],
-                'dimension_sets' => [
+                'argument_sets' => [
                     $args,
                 ]
             ];
+
+            if ($method) {
+                $definition['method'] = $method;
+            }
         }
 
         return $definition;
-    }
-
-    /**
-     * Return a resampled image equivalent to $Image.MethodName(...$args) in a template
-     */
-    protected function getResampledImage(string $methodName, array $args): DBFile|Image|null
-    {
-        return call_user_func_array([$this->owner, $methodName], $args);
     }
 
     /**
@@ -221,7 +211,7 @@ class ResponsiveImageExtension extends Extension
      *
      * @param string $setName The name of the responsive image set to get
      */
-    protected function getConfigForSet(string $setName): ?array
+    private function getConfigForSet(string $setName): ?array
     {
         $name = strtolower($setName);
         $sets = array_change_key_case($this->getSets());
@@ -307,29 +297,30 @@ class ResponsiveImageExtension extends Extension
         return $definition;
     }
 
-    private function getSourceSet(string $setName, array $definitionSets)
+    private function getSourceSetForDefinitionSets(string $setName, array $definitionSets)
     {
-        $sourceSet = new SourceSet();
+        $sourceSet = SourceSet::create();
 
         foreach ($definitionSets as $definition) {
-            $sourceSet->push($this->getSource($setName, $definition));
+            $sourceSet->push($this->getSourceForDefinition($setName, $definition));
         }
 
         return $sourceSet;
     }
 
-    private function getSource(string $setName, array $definition): Source
+    private function getSourceForDefinition(string $setName, array $definition): Source
     {
-        $dimensionSets = $definition['dimension_sets'] ?? null;
+        // The argument sets are sets of dimensions (and any other args that any image manipulation might support)
+        $argumentSets = $definition['argument_sets'] ?? null;
 
-        if (!is_array($dimensionSets)) {
+        if (!is_array($argumentSets)) {
             throw new Exception(sprintf(
-                'The "definition" configuration for set "%s" does not have any sources defined',
+                'The "definition" configuration for set "%s" does not have any "argument_sets" defined',
                 $setName
             ));
         }
 
-        $method = $config['method'] ?? Config::inst()->get(static::class, 'default_method');
+        $method = $config['method'] ?? Config::inst()->get(ResponsiveImage::class, 'default_method');
 
         if (!$this->owner->hasMethod($method)) {
             throw new Exception(sprintf(
@@ -339,7 +330,7 @@ class ResponsiveImageExtension extends Extension
             ));
         }
 
-        $source = new Source($this->owner, $dimensionSets, $method);
+        $source = Source::create($this->owner, $argumentSets, $method);
         $source->setSizes($definition['sizes'] ?? []);
         $source->setMedia($definition['media'] ?? []);
 

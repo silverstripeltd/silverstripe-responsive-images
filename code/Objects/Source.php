@@ -14,7 +14,7 @@ class Source extends ViewableData
 
     public function __construct(
         private readonly DBFile|Image $image,
-        private readonly array $dimensionSets,
+        private readonly array $argumentSets,
         private readonly string $method,
         private array $sizes = [],
         private array $media = []
@@ -22,12 +22,22 @@ class Source extends ViewableData
         parent::__construct();
     }
 
+    public function setSizes(array $sizes): void
+    {
+        $this->sizes = $sizes;
+    }
+
+    public function setMedia(array $media): void
+    {
+        $this->media = $media;
+    }
+
     public function getSources(): ArrayList
     {
         $sources = ArrayList::create();
 
-        foreach ($this->dimensionSets as $dimensionSet) {
-            $sources->push($this->getResampledImage($this->method, $dimensionSet));
+        foreach ($this->argumentSets as $argumentSet) {
+            $sources->push($this->getResampledImage($this->method, $argumentSet));
         }
 
         return $sources;
@@ -35,22 +45,12 @@ class Source extends ViewableData
 
     public function getSizesAsString(): string
     {
-        return implode(',', $this->sizes);
-    }
-
-    public function setSizes(array $sizes): void
-    {
-        $this->sizes = $sizes;
+        return implode(', ', $this->sizes);
     }
 
     public function getMediaAsString(): string
     {
-        return implode(',', $this->media);
-    }
-
-    public function setMedia(array $media): void
-    {
-        $this->media = $media;
+        return implode(', ', $this->media);
     }
 
     public function forTemplate(): ViewableData

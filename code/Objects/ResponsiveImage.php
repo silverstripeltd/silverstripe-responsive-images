@@ -2,37 +2,84 @@
 
 namespace Heyday\ResponsiveImages\Objects;
 
-use Heyday\ResponsiveImages\ResponsiveImageExtension;
 use SilverStripe\Assets\Image;
 use SilverStripe\Assets\Storage\DBFile;
 use SilverStripe\Core\Config\Config;
+use SilverStripe\Core\Config\Configurable;
 use SilverStripe\View\ViewableData;
 
 class ResponsiveImage extends ViewableData
 {
+    use Configurable;
+
     public const FORMAT_IMG = 'img';
     public const FORMAT_PICTURE = 'picture';
 
+    public const FORMATS = [
+        self::FORMAT_IMG,
+        self::FORMAT_PICTURE,
+    ];
+
+    private static array $default_image_arguments = [800, 600];
+
+    private static string $default_format = self::FORMAT_PICTURE;
+
+    private static string $default_method = 'ScaleWidth';
+
+    private static string $default_css_classes = '';
+
     private SourceSet|Source|null $source = null;
+
+    private ?string $template = null;
 
     public function __construct(
         private readonly DBFile|Image $image,
         private readonly string $format = self::FORMAT_PICTURE,
-        private ?array $defaultImageDimensions = null,
+        private ?array $defaultImageArguments = null,
         private ?string $defaultImageMethod = null,
         private ?string $cssClasses = null
     ) {
         parent::__construct();
     }
 
-    public function getSource(): Source|SourceSet|null
-    {
-        return $this->source;
-    }
-
     public function setSource(Source|SourceSet|null $source): void
     {
         $this->source = $source;
+    }
+
+    public function setCssClasses(?string $cssClasses): void
+    {
+        $this->cssClasses = $cssClasses;
+    }
+
+    public function setDefaultImageArguments(?array $defaultImageArguments): void
+    {
+        $this->defaultImageArguments = $defaultImageArguments;
+    }
+
+    public function setDefaultImageMethod(?string $defaultImageMethod): void
+    {
+        $this->defaultImageMethod = $defaultImageMethod;
+    }
+
+    public function setTemplate(?string $template): void
+    {
+        $this->template = $template;
+    }
+
+    public function getDefaultImageArguments(): ?array
+    {
+        return $this->defaultImageArguments ?? Config::inst()->get(static::class, 'default_image_arguments');
+    }
+
+    public function getDefaultImageMethod(): ?string
+    {
+        return $this->defaultImageMethod ?? Config::inst()->get(static::class, 'default_method');
+    }
+
+    public function getSource(): Source|SourceSet|null
+    {
+        return $this->source;
     }
 
     public function getSourceIsIterable(): bool
@@ -45,29 +92,14 @@ class ResponsiveImage extends ViewableData
         return $this->format;
     }
 
-    public function setCssClasses(?string $cssClasses): void
-    {
-        $this->cssClasses = $cssClasses;
-    }
-
-    public function setDefaultImageDimensions(?array $defaultImageDimensions): void
-    {
-        $this->defaultImageDimensions = $defaultImageDimensions;
-    }
-
-    public function setDefaultImageMethod(?string $defaultImageMethod): void
-    {
-        $this->defaultImageMethod = $defaultImageMethod;
-    }
-
     public function getDefaultImage(): DBFile|Image
     {
-        $methodName = $this->defaultImageMethod ?? Config::inst()->get(ResponsiveImageExtension::class, 'default_method');
-        $dimensions = $this->defaultImageDimensions ?? Config::inst()->get(ResponsiveImageExtension::class, 'default_arguments');
-
-        return call_user_func_array([$this->image, $methodName], $dimensions);
+        return call_user_func_array([$this->image, $this->getDefaultImageMethod()], $this->getDefaultImageArguments());
     }
 
+    /**
+     * Enhance the default CSSClasses method provided by ViewableData
+     */
     public function CSSClasses($stopAtClass = self::class)
     {
         return sprintf('%s %s', parent::CSSClasses(), $this->cssClasses);
@@ -75,6 +107,10 @@ class ResponsiveImage extends ViewableData
 
     public function forTemplate(): ViewableData
     {
+        if ($this->template) {
+            return $this->renderWith($this->template);
+        }
+
         return $this->renderWith('Hayday/ResponsiveImages/Objects/ResponsiveImage');
     }
 }

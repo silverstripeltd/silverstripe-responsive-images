@@ -8,6 +8,10 @@
         "php": "^8.1",
         "silverstripe/framework": "^5.0"
     },
+    "require-dev": {
+        "silverstripe/recipe-testing": "^3",
+        "slevomat/coding-standard": "~8.8.0"
+    },
     "extra": {
         "expose": [
             "javascript"

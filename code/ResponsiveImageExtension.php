@@ -79,41 +79,42 @@ class ResponsiveImageExtension extends Extension
 
         // A single definition, which can be used as either img or picture
         $singleDefinition = $config['definition'] ?? null;
-        // Art direction means multiple source tags, and so can only be supported by picture
-        $artDirection = $config['art_direction'] ?? null;
         // Legacy support for simple "media query" picture sources (which is effectively "art direction")
         $arguments = $config['arguments'] ?? null;
         // Only the Legacy method provides method at the "top level"
         $method = null;
 
         // If no valid configuration was supplied, then we can't proceed
-        if (!is_array($singleDefinition) && !is_array($artDirection) && !is_array($arguments)) {
+        if (!is_array($singleDefinition) && !is_array($arguments)) {
             throw new Exception(sprintf(
-                'Responsive set "%s" has no "definition", "art_direction", or "arguments" defined in its config',
+                'Responsive set "%s" has no "definition" or "arguments" defined in its config',
                 $setName
             ));
         }
 
+        // TODO this needs a refactor. Just trying to get it working atm
         if (is_array($singleDefinition)) {
-            // Single definitions can use either the img or picture format
-            $format = $config['format'] ?? Config::inst()->get(static::class, 'default_format');
-            // There is no manipulation of data for us to do here
-            $definition = $singleDefinition;
+            if ($this->containsArtDirection($singleDefinition)) {
+                // Only "picture" format is supported for art direction, as it requires multiple source tags
+                $format = ResponsiveImage::FORMAT_PICTURE;
+                // Art direction can be provided as an array of setNames and/or an array of full config definitions. Here
+                // we will convert all of those into an array of standard definitions
+                $definition = $this->getDefinitionForArtDirection($setName, $singleDefinition);
+            } else {
+                // Single definitions can use either the img or picture format
+                $format = $config['format'] ?? Config::inst()->get(static::class, 'default_format');
+                // There is no manipulation of data for us to do here
+                $definition = $singleDefinition;
 
-            // Make sure a valid format was specified
-            if (!in_array($format, ResponsiveImage::FORMATS)) {
-                throw new Exception(sprintf(
-                    'Invalid format "%s" specified for set "%s"',
-                    $format,
-                    $setName
-                ));
+                // Make sure a valid format was specified
+                if (!in_array($format, ResponsiveImage::FORMATS)) {
+                    throw new Exception(sprintf(
+                        'Invalid format "%s" specified for set "%s"',
+                        $format,
+                        $setName
+                    ));
+                }
             }
-        } else if (is_array($artDirection)) {
-            // Only "picture" format is supported for art direction, as it requires multiple source tags
-            $format = ResponsiveImage::FORMAT_PICTURE;
-            // Art direction can be provided as an array of setNames and/or an array of full config definitions. Here
-            // we will convert all of those into an array of standard definitions
-            $definition = $this->getDefinitionForArtDirection($setName, $artDirection);
         } else {
             // Only "picture" format is supported for art direction
             $format = ResponsiveImage::FORMAT_PICTURE;
@@ -188,6 +189,7 @@ class ResponsiveImageExtension extends Extension
             }
 
             $definition[] = [
+                'method' => $method,
                 'media' => [
                     $query,
                 ],
@@ -195,10 +197,6 @@ class ResponsiveImageExtension extends Extension
                     $args,
                 ]
             ];
-
-            if ($method) {
-                $definition['method'] = $method;
-            }
         }
 
         return $definition;
@@ -263,7 +261,7 @@ class ResponsiveImageExtension extends Extension
         foreach ($artDirection as $setNameOrDefinition) {
             if (!is_array($setNameOrDefinition) && !is_string($setNameOrDefinition)) {
                 throw new Exception(sprintf(
-                    'Invalid art_direction values provided for set "%s", only string or array allowed',
+                    'Invalid definition values provided for set "%s", only string or array allowed',
                     $setName
                 ));
             }
@@ -330,11 +328,48 @@ class ResponsiveImageExtension extends Extension
             ));
         }
 
+        $sizes = $definition['sizes'] ?? null;
+
+        // We allow the config to be a string if there is only one size, but we want to handle this as an array
+        // from this point forward
+        if (is_string($sizes)) {
+            $sizes = [$sizes];
+        }
+
+        $media = $definition['media'] ?? null;
+
+        // We allow the config to be a string if there is only one media, but we want to handle this as an array
+        // from this point forward
+        if (is_string($media)) {
+            $media = [$media];
+        }
+
         $source = Source::create($this->owner, $argumentSets, $method);
-        $source->setSizes($definition['sizes'] ?? []);
-        $source->setMedia($definition['media'] ?? []);
+        $source->setSizes($sizes);
+        $source->setMedia($media);
 
         return $source;
+    }
+
+    private function containsArtDirection(array $definition): bool
+    {
+        if (array_key_exists('method', $definition)) {
+            return false;
+        }
+
+        if (array_key_exists('argument_sets', $definition)) {
+            return false;
+        }
+
+        if (array_key_exists('media', $definition)) {
+            return false;
+        }
+
+        if (array_key_exists('sizes', $definition)) {
+            return false;
+        }
+
+        return true;
     }
 
     private function hasAssociativeArray(array $definitions): bool

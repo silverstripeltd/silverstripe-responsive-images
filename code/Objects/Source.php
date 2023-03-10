@@ -22,14 +22,14 @@ class Source extends ViewableData
         parent::__construct();
     }
 
-    public function setSizes(array $sizes): void
+    public function setSizes(?array $sizes): void
     {
-        $this->sizes = $sizes;
+        $this->sizes = $sizes ?? [];
     }
 
-    public function setMedia(array $media): void
+    public function setMedia(?array $media): void
     {
-        $this->media = $media;
+        $this->media = $media ?? [];
     }
 
     public function getSources(): ArrayList

@@ -97,8 +97,8 @@ class ResponsiveImageExtension extends Extension
             if ($this->containsArtDirection($singleDefinition)) {
                 // Only "picture" format is supported for art direction, as it requires multiple source tags
                 $format = ResponsiveImage::FORMAT_PICTURE;
-                // Art direction can be provided as an array of setNames and/or an array of full config definitions. Here
-                // we will convert all of those into an array of standard definitions
+                // Art direction can be provided as an array of setNames and/or an array of full config definitions.
+                // Here we will convert all of those into an array of standard definitions
                 $definition = $this->getDefinitionForArtDirection($setName, $singleDefinition);
             } else {
                 // Single definitions can use either the img or picture format
@@ -107,7 +107,7 @@ class ResponsiveImageExtension extends Extension
                 $definition = $singleDefinition;
 
                 // Make sure a valid format was specified
-                if (!in_array($format, ResponsiveImage::FORMATS)) {
+                if (!in_array($format, ResponsiveImage::FORMATS, true)) {
                     throw new Exception(sprintf(
                         'Invalid format "%s" specified for set "%s"',
                         $format,
@@ -180,7 +180,7 @@ class ResponsiveImageExtension extends Extension
                 ));
             }
 
-            if (!is_array($args) || empty($args)) {
+            if (!is_array($args) || !$args) {
                 throw new Exception(sprintf(
                     "Responsive set %s doesn't have any arguments provided for the query: %s",
                     $setName,
@@ -195,7 +195,7 @@ class ResponsiveImageExtension extends Extension
                 ],
                 'argument_sets' => [
                     $args,
-                ]
+                ],
             ];
         }
 
@@ -295,7 +295,7 @@ class ResponsiveImageExtension extends Extension
         return $definition;
     }
 
-    private function getSourceSetForDefinitionSets(string $setName, array $definitionSets)
+    private function getSourceSetForDefinitionSets(string $setName, array $definitionSets): SourceSet
     {
         $sourceSet = SourceSet::create();
 
@@ -365,11 +365,7 @@ class ResponsiveImageExtension extends Extension
             return false;
         }
 
-        if (array_key_exists('sizes', $definition)) {
-            return false;
-        }
-
-        return true;
+        return !array_key_exists('sizes', $definition);
     }
 
     private function hasAssociativeArray(array $definitions): bool

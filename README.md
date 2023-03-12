@@ -1,6 +1,7 @@
 # Responsive Images for SilverStripe
 
 * [Introduction](#introduction)
+  * [Migrating from version 2 to 3](docs/en/migrating-from-2-to-3.md)
 * [Requirements](#requirements)
 * [Installation](#installation)
 * [How to use](#how-to-use)
@@ -17,6 +18,10 @@ resources until a media query can be executed.
 
 This is particularly useful for sites that use responsive design, because it means that smaller viewports can receive
 images optimised for their size rather than pulling down a single image optimised for desktop.
+
+### Migrating from version 2 to 3
+
+[Migrating from version 2 to 3](docs/en/migrating-from-2-to-3.md)
 
 ## Requirements
 

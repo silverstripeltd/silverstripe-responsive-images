@@ -10,6 +10,7 @@ use SilverStripe\View\ViewableData;
 
 class ResponsiveImage extends ViewableData
 {
+
     use Configurable;
 
     public const FORMAT_IMG = 'img';
@@ -110,6 +111,9 @@ class ResponsiveImage extends ViewableData
 
     /**
      * Enhance the default CSSClasses method provided by ViewableData
+     *
+     * @phpcsSuppress SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingAnyTypeHint
+     * @phpcsSuppress SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingAnyTypeHint
      */
     public function CSSClasses($stopAtClass = self::class)
     {

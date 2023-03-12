@@ -10,6 +10,7 @@ use SilverStripe\View\ViewableData;
 
 class Source extends ViewableData
 {
+
     use Injectable;
 
     public function __construct(

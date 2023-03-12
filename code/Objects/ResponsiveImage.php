@@ -98,11 +98,26 @@ class ResponsiveImage extends ViewableData
     }
 
     /**
+     * A chainable method that can be called from within a Silverstripe template
+     * EG: $MyImage.ResponsiveSet1.Css('class-one class-two')
+     */
+    public function Css(?string $cssClasses): static
+    {
+        $this->setCssClasses($cssClasses);
+
+        return $this;
+    }
+
+    /**
      * Enhance the default CSSClasses method provided by ViewableData
      */
     public function CSSClasses($stopAtClass = self::class)
     {
-        return sprintf('%s %s', parent::CSSClasses(), $this->cssClasses);
+        $additionalClasses = $this->cssClasses
+            ?? Config::inst()->get(static::class, 'default_css_classes')
+            ?? null;
+
+        return sprintf('%s %s', parent::CSSClasses(), $additionalClasses);
     }
 
     public function forTemplate(): ViewableData

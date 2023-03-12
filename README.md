@@ -1,5 +1,15 @@
 # Responsive Images for SilverStripe
 
+* [Introduction](#introduction)
+* [Requirements](#requirements)
+* [Installation](#installation)
+* [How to use](#how-to-use)
+* [Defining responsive image sets](#defining-responsive-image-sets)
+  * [Global defaults](#global-defaults)
+  * [Fluid image example](#fluid-image-example)
+  * [Extended media query example (art direction)](#extended-media-query-example--art-direction-)
+  * [Simple media query (`arguments`)](#simple-media-query--arguments-)
+
 ## Introduction
 
 This module provides the ability to send a series of configured image sizes to the client without actually loading any
@@ -50,49 +60,43 @@ $MyImage.ResponsiveSet2
 $MyImage.ResponsiveSet3
 ```
 
-### Simple media query example
+You can also specify the CSS classes to be included with the image within the template or configuration
+(configuration method explained later):
 
-```yaml
-Heyday\ResponsiveImages\ResponsiveImageExtension:
-  sets:
-    ResponsiveSet1:
-      # No 'method' has been defined, so we would use the global default
-      # No 'default_image_arguments' have been provided, so we would use the global default ([800, 600])
-      css_classes: 'class-one class-two'
-      # Key values here are used verbatim within the "media" attribute
-      # The values of your array are passed as arguments to the image manipulation method you defined
-      arguments:
-        '(min-width: 1200px)': [ 800 ]
-        '(min-width: 800px)': [ 400 ]
-        '(min-width: 200px)': [ 100 ]
-    ResponsiveSet2:
-      # We will use this method when creating image variants. Note: This is used for all image sources
-      method: Fill
-      # We will use these arguments when generating the variant to be used as the "Default" image source
-      default_image_arguments: [ 1200, 1200 ]
-      arguments:
-        '(min-width: 1000px) and (min-device-pixel-ratio: 2.0)': [ 1800, 1800 ]
-        '(min-width: 1000px)': [ 900, 900 ]
-        '(min-width: 800px) and (min-device-pixel-ratio: 2.0)': [ 1400, 1400 ]
-        '(min-width: 800px)': [ 700, 700 ]
-        '(min-width: 400px) and (min-device-pixel-ratio: 2.0)': [ 600, 600 ]
-        '(min-width: 400px)': [ 300, 300 ]
+```silverstripe
+$MyImage.ResponsiveSet1.Css('class-one class-two')
 ```
 
-The output of `$MyImage.ResponsiveSet1` will look something like this, remember that the first matching media-query will
-be taken:
+The default image (used for the `img` tag or `src` attribute) can also be defined through the template by providing
+arguments to your set name method (or through configuration).
 
-```html
-<picture>
-    <source media="(min-width: 1200px) 800w" srcset="/assets/Uploads/Fill800-my-image.jpeg">
-    <source media="(min-width: 800px) 400w" srcset="/assets/Uploads/Fill400-my-image.jpeg">
-    <source media="(min-width: 200px) 100w" srcset="/assets/Uploads/Fill100-my-image.jpeg">
-    <img
-        src="/assets/Uploads/_resampled/Fill800x600-my-image.jpeg"
-        alt="my-image.jpeg"
-        class="ResponsiveImage class-one class-two"
-    />
-</picture>
+This will use the default image manipulation method, but set the dimensions:
+
+```silverstripe
+$MyImage.MyResponsiveSet(800, 600)
+```
+
+Or you can also provide an image manipulation method:
+
+```silverstripe
+$MyImage.MyResponsiveSet('Fill', 800, 600)
+```
+
+## Defining responsive image sets
+
+### Global defaults
+
+```yml
+Heyday\ResponsiveImages\ResponsiveImageExtension:
+  # Options are 'img' or 'picture'. Note that 'img' is not available when multiple aspect ratios are required
+  default_format: picture
+  # The default image manipulation method we will use when creating any/all image variants if no method is specified
+  # through the set configuration
+  default_method: ScaleWidth
+  # The default image arguments used when creating the default img source
+  default_image_arguments: [800, 600]
+  # CSS classes that will be added to the img tag if none are specified through config or template
+  default_css_classes: ''
 ```
 
 ### Fluid image example
@@ -103,8 +107,8 @@ Below is an example of a basic "fluid" responsive image.
   1200px or greater, do not display the image any larger than 33% of the view width)
 * We have defined the available image sizes that we have (1800w, 900w, 600w)
 
-The result is that the browser can then pick which sized image will fit the available space (based on the limitations)
-we set in our `sizes`.
+The result is that the browser can then pick which sized image will fit the available space (based on the limitations
+we set in our `sizes`).
 
 ```html
 <!-- Example using config format 'img' -->
@@ -156,7 +160,7 @@ Heyday\ResponsiveImages\ResponsiveImageExtension:
           '100vw'
 ```
 
-### Extended media query example
+### Extended media query example (art direction)
 
 Now we'll get into a more complex setup, where we have multiple picture sources that we want to serve under different
 `media` queries.
@@ -215,20 +219,21 @@ this time we're making use of all 3 of the source attributes (`media`, `srcset`,
                 /assets/Uploads/Fill775-my-image.jpg 775w,
                 /assets/Uploads/Fill300-my-image.jpg 300w"
     />
-    <%-- Our default image --%>
-    <img src="Fill900x600-my-image.jpg" />
+    <%-- Our default image with CSS classes added --%>
+    <img src="Fill900x600-my-image.jpg" class="class-one class-two" />
 </picture>
 ```
 
 The way we can achieve this configuration is effectively by duplicating the `definition` configuration that we 
 previously made in [Fluid image example](#fluid-image-example).
 
-The `definition` configuration allows you to provide an array of **other** set names, and it also allows you to provide
-full configurations to supplement that.
+The `definition` configuration can support an array of `definitions`. This array can be of other set names, and/or it
+also allows you to provide full configuration arrays.
 
 ```yaml
 Heyday\ResponsiveImages\ResponsiveImageExtension:
   sets:
+    # A reusable responsive set
     ResponsiveDesktop1:
       definition:
         method: Fill
@@ -246,7 +251,7 @@ Heyday\ResponsiveImages\ResponsiveImageExtension:
     ResponsiveSet1:
       # No 'format' needs to be supplied, because "picture" is the only valid option for art direction
       definition:
-          # This will include the definition from the set we define (ResponsiveDesktop1)
+          # This will include the definition from the set we defined above (ResponsiveDesktop1)
         - ResponsiveDesktop1
           # Each definition (like before) can have their own method for variant generation (because you might want to
           # crop different sources in different ways
@@ -268,31 +273,59 @@ Heyday\ResponsiveImages\ResponsiveImageExtension:
             [300, 300]
 ```
 
-## Other options
+### Simple media query (`arguments`)
 
-Each set should have a "default_image_arguments" property set in case the browser does not support media queries. By
-default, the "default_image_arguments" property results in an 800x600 image, but this can be overridden in the config.
+The legacy method of defining sets is also still supported, but please note that the available configurations are
+limited, and follow a slightly different format to the examples above.
 
-```yml
+If you would like to achive an output similar to below:
+
+```html
+<picture>
+    <source media="(min-width: 1200px) 800w" srcset="/assets/Uploads/Fill800-my-image.jpeg">
+    <source media="(min-width: 800px) 400w" srcset="/assets/Uploads/Fill400-my-image.jpeg">
+    <source media="(min-width: 200px) 100w" srcset="/assets/Uploads/Fill100-my-image.jpeg">
+    <img
+        src="/assets/Uploads/_resampled/Fill800x600-my-image.jpeg"
+        alt="my-image.jpeg"
+        class="ResponsiveImage class-one class-two"
+    />
+</picture>
+```
+
+You could create some configurations as follows:
+
+```yaml
 Heyday\ResponsiveImages\ResponsiveImageExtension:
-  default_image_arguments: [ 1200, 768 ]
+  sets:
+    ResponsiveSet1:
+      # No 'method' config has been defined, so we would use the global default
+      # No 'default_image_arguments' config have been provided, so we would use the global default ([800, 600])
+      # css_classes can also be defined in our template, EG: $MyImage.ResponsiveSet1.Css('class-one class-two')
+      css_classes: 'class-one class-two'
+      # Key values here are used verbatim within the "media" attribute
+      # The values of your array are passed as arguments to the image manipulation method you defined. These equate to
+      # [ width, height ] (where height is optional)
+      arguments:
+        '(min-width: 1200px)': [ 800 ]
+        '(min-width: 800px)': [ 400 ]
+        '(min-width: 200px)': [ 100 ]
+    ResponsiveSet2:
+      # We will use this method when creating image variants. Note: This is used for all image sources
+      method: Fill
+      # We will use these arguments when generating the variant to be used as the "Default" image source
+      default_image_arguments: [ 1200, 1200 ]
+      arguments:
+        '(min-width: 1000px) and (min-device-pixel-ratio: 2.0)': [ 1800, 1800 ]
+        '(min-width: 1000px)': [ 900, 900 ]
+        '(min-width: 800px) and (min-device-pixel-ratio: 2.0)': [ 1400, 1400 ]
+        '(min-width: 800px)': [ 700, 700 ]
+        '(min-width: 400px) and (min-device-pixel-ratio: 2.0)': [ 600, 600 ]
+        '(min-width: 400px)': [ 300, 300 ]
 ```
 
-You can also pass arguments for the default image at the template level.
+In my template I can include this image (with CSS classes):
 
-```
-$MyImage.MyResponsiveSet(900, 600)
-```
-
-The default resampling method is `ScaleWidth`, but this can be overridden in your config.
-
-```yml
-Heyday\ResponsiveImages\ResponsiveImageExtension:
-  default_method: Fill
-```
-
-It can also be passed into your template function.
-
-```
-$MyImage.MyResponsiveSet('Fill', 800, 600)
+```silverstripe
+$MyImage.ResponsiveSet1.Css('class-one class-two')
 ```

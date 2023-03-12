@@ -4,6 +4,9 @@
     "keywords": ["silverstripe", "responsive", "image"],
     "type": "silverstripe-vendormodule",
     "license": "MIT",
+    "support": {
+        "issues": "https://github.com/heyday/silverstripe-responsive-images/issues"
+    },
     "require": {
         "php": "^8.1",
         "silverstripe/framework": "^5.0"
@@ -12,14 +15,20 @@
         "silverstripe/recipe-testing": "^3",
         "slevomat/coding-standard": "~8.8.0"
     },
-    "extra": {
-        "expose": [
-            "javascript"
-        ]
-    },
     "autoload": {
         "psr-4": {
-            "Heyday\\ResponsiveImages\\": "code/"
+            "Heyday\\ResponsiveImages\\": "src/",
+            "Heyday\\ResponsiveImages\\Tests\\": "tests/"
+        }
+    },
+    "prefer-stable": true,
+    "minimum-stability": "dev",
+    "config": {
+        "allow-plugins": {
+            "composer/installers": true,
+            "silverstripe/vendor-plugin": true,
+            "silverstripe/recipe-plugin": true,
+            "dealerdirect/phpcodesniffer-composer-installer": true
         }
     }
 }
